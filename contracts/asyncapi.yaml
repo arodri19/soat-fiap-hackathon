@@ -1,0 +1,259 @@
+asyncapi: 3.0.0
+info:
+  title: FIAP X — eventos de vídeo
+  version: 1.0.0
+  description: |
+    Mensagens trocadas pelo RabbitMQ. Topologia criada por `infra/rabbitmq/definitions.json`.
+
+    **Exchanges**
+    - `videos` (topic): todos os eventos de domínio.
+    - `videos.retry` (direct): mensagens rejeitadas pelo worker aguardam 10 s na fila de retry
+      e voltam para `videos`.
+    - `videos.dlq` (direct): mensagens que esgotaram as tentativas ou não puderam ser tratadas.
+
+    **Garantias**
+    - Mensagens persistentes (`delivery_mode=2`), filas quorum duráveis, *publisher confirms*.
+    - `ack` manual somente depois que o efeito foi concluído.
+    - Entrega *at-least-once*: todo consumidor é idempotente por `video_id` + status, e a video-api
+      ignora transições de status para trás (ex.: `PROCESSING` depois de `DONE`).
+
+    **Retry do processamento**
+    1. Worker falha → `nack(requeue=false)` → `videos.retry` → `processor.video-requested.retry` (TTL 10 s) → volta para `processor.video-requested`.
+    2. O worker conta as tentativas pelo header `x-death`. Na 3ª falha: publica `video.failed`,
+       publica a mensagem original em `videos.dlq` (routing key `video.requested`) e dá `ack`.
+
+    **Cabeçalhos AMQP comuns**: `message_id` (UUID do evento), `correlation_id` (= `video_id`),
+    `content_type: application/json`, `timestamp`, header `x-request-id` (rastreabilidade desde o HTTP).
+  license:
+    name: MIT
+defaultContentType: application/json
+
+servers:
+  local:
+    host: localhost:5672
+    protocol: amqp
+    protocolVersion: 0-9-1
+    description: RabbitMQ do docker-compose (usuário fiapx)
+
+channels:
+  videoRequested:
+    address: video.requested
+    description: Publicado pela video-api (via outbox) quando um upload é aceito.
+    messages:
+      videoRequested: { $ref: "#/components/messages/VideoRequested" }
+    bindings:
+      amqp:
+        is: routingKey
+        exchange: { name: videos, type: topic, durable: true, autoDelete: false, vhost: / }
+        bindingVersion: 0.3.0
+
+  videoProcessing:
+    address: video.processing
+    description: Publicado pelo worker ao começar a processar.
+    messages:
+      videoProcessing: { $ref: "#/components/messages/VideoProcessing" }
+    bindings:
+      amqp:
+        is: routingKey
+        exchange: { name: videos, type: topic, durable: true, autoDelete: false, vhost: / }
+        bindingVersion: 0.3.0
+
+  videoDone:
+    address: video.done
+    description: Publicado pelo worker quando o zip foi gerado e gravado no storage.
+    messages:
+      videoDone: { $ref: "#/components/messages/VideoDone" }
+    bindings:
+      amqp:
+        is: routingKey
+        exchange: { name: videos, type: topic, durable: true, autoDelete: false, vhost: / }
+        bindingVersion: 0.3.0
+
+  videoFailed:
+    address: video.failed
+    description: Publicado pelo worker quando o processamento falhou de forma definitiva.
+    messages:
+      videoFailed: { $ref: "#/components/messages/VideoFailed" }
+    bindings:
+      amqp:
+        is: routingKey
+        exchange: { name: videos, type: topic, durable: true, autoDelete: false, vhost: / }
+        bindingVersion: 0.3.0
+
+operations:
+  publishVideoRequested:
+    action: send
+    channel: { $ref: "#/channels/videoRequested" }
+    summary: video-api → solicita processamento
+    bindings:
+      amqp: { deliveryMode: 2, mandatory: true, timestamp: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoRequested/messages/videoRequested"
+
+  consumeVideoRequested:
+    action: receive
+    channel: { $ref: "#/channels/videoRequested" }
+    summary: processor-worker consome da fila `processor.video-requested`
+    bindings:
+      amqp: { ack: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoRequested/messages/videoRequested"
+
+  publishVideoProcessing:
+    action: send
+    channel: { $ref: "#/channels/videoProcessing" }
+    summary: processor-worker → início do processamento
+    bindings:
+      amqp: { deliveryMode: 2, mandatory: true, timestamp: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoProcessing/messages/videoProcessing"
+
+  publishVideoDone:
+    action: send
+    channel: { $ref: "#/channels/videoDone" }
+    summary: processor-worker → processamento concluído
+    bindings:
+      amqp: { deliveryMode: 2, mandatory: true, timestamp: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoDone/messages/videoDone"
+
+  publishVideoFailed:
+    action: send
+    channel: { $ref: "#/channels/videoFailed" }
+    summary: processor-worker → falha definitiva
+    bindings:
+      amqp: { deliveryMode: 2, mandatory: true, timestamp: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoFailed/messages/videoFailed"
+
+  consumeStatusProcessing:
+    action: receive
+    channel: { $ref: "#/channels/videoProcessing" }
+    summary: video-api atualiza status (fila `video-api.status-events`)
+    bindings:
+      amqp: { ack: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoProcessing/messages/videoProcessing"
+
+  consumeStatusDone:
+    action: receive
+    channel: { $ref: "#/channels/videoDone" }
+    summary: video-api atualiza status (fila `video-api.status-events`)
+    bindings:
+      amqp: { ack: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoDone/messages/videoDone"
+
+  consumeStatusFailed:
+    action: receive
+    channel: { $ref: "#/channels/videoFailed" }
+    summary: video-api atualiza status (fila `video-api.status-events`)
+    bindings:
+      amqp: { ack: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoFailed/messages/videoFailed"
+
+  notifyVideoFailed:
+    action: receive
+    channel: { $ref: "#/channels/videoFailed" }
+    summary: notification-service envia e-mail (fila `notification.video-events`)
+    bindings:
+      amqp: { ack: true, bindingVersion: 0.3.0 }
+    messages:
+      - $ref: "#/channels/videoFailed/messages/videoFailed"
+
+components:
+  messages:
+    VideoRequested:
+      name: VideoRequested
+      title: Vídeo aguardando processamento
+      payload: { $ref: "#/components/schemas/VideoRequestedPayload" }
+      examples:
+        - payload:
+            event_id: 9b2f6a0e-1d4c-4c1e-8f2a-5b3c7d9e1f20
+            occurred_at: "2026-11-21T19:20:27Z"
+            video_id: 3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60
+            user_id: 5a1d3c7b-2e4f-4b6a-8c9d-0e1f2a3b4c5d
+            user_email: ana@exemplo.com
+            original_filename: apresentacao.mp4
+            storage_key: 5a1d3c7b-2e4f-4b6a-8c9d-0e1f2a3b4c5d/3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60.mp4
+
+    VideoProcessing:
+      name: VideoProcessing
+      title: Processamento iniciado
+      payload: { $ref: "#/components/schemas/VideoProcessingPayload" }
+
+    VideoDone:
+      name: VideoDone
+      title: Processamento concluído
+      payload: { $ref: "#/components/schemas/VideoDonePayload" }
+      examples:
+        - payload:
+            event_id: 1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f
+            occurred_at: "2026-11-21T19:20:41Z"
+            video_id: 3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60
+            zip_key: 5a1d3c7b-2e4f-4b6a-8c9d-0e1f2a3b4c5d/3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60.zip
+            frame_count: 87
+
+    VideoFailed:
+      name: VideoFailed
+      title: Falha definitiva no processamento
+      payload: { $ref: "#/components/schemas/VideoFailedPayload" }
+      examples:
+        - payload:
+            event_id: 7e8f9a0b-1c2d-4e3f-9a4b-5c6d7e8f9a0b
+            occurred_at: "2026-11-21T19:21:10Z"
+            video_id: 3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60
+            user_id: 5a1d3c7b-2e4f-4b6a-8c9d-0e1f2a3b4c5d
+            user_email: ana@exemplo.com
+            original_filename: video_corrompido.mkv
+            error: "ffmpeg: Invalid data found when processing input"
+            attempts: 3
+
+  schemas:
+    EventBase:
+      type: object
+      required: [event_id, occurred_at, video_id]
+      properties:
+        event_id: { type: string, format: uuid, description: Único por evento (idempotência) }
+        occurred_at: { type: string, format: date-time }
+        video_id: { type: string, format: uuid }
+
+    VideoRequestedPayload:
+      allOf:
+        - $ref: "#/components/schemas/EventBase"
+        - type: object
+          required: [user_id, user_email, original_filename, storage_key]
+          properties:
+            user_id: { type: string, format: uuid }
+            user_email: { type: string, format: email }
+            original_filename: { type: string }
+            storage_key: { type: string, description: Chave do vídeo no bucket `raw-videos` }
+
+    VideoProcessingPayload:
+      allOf:
+        - $ref: "#/components/schemas/EventBase"
+        - type: object
+          properties:
+            attempt: { type: integer, minimum: 1 }
+
+    VideoDonePayload:
+      allOf:
+        - $ref: "#/components/schemas/EventBase"
+        - type: object
+          required: [zip_key, frame_count]
+          properties:
+            zip_key: { type: string, description: Chave do zip no bucket `frame-zips` }
+            frame_count: { type: integer, minimum: 1 }
+
+    VideoFailedPayload:
+      allOf:
+        - $ref: "#/components/schemas/EventBase"
+        - type: object
+          required: [user_id, user_email, original_filename, error, attempts]
+          properties:
+            user_id: { type: string, format: uuid }
+            user_email: { type: string, format: email }
+            original_filename: { type: string }
+            error: { type: string, description: Motivo legível para o usuário }
+            attempts: { type: integer, minimum: 1 }
