@@ -1,7 +1,7 @@
 -- =============================================================================
 -- FIAP X — Script de referência do modelo de dados
 -- =============================================================================
--- Fonte da verdade: as migrations de cada serviço (Prisma). Este arquivo
+-- Fonte da verdade: services/<servico>/migrations/*.sql. Este arquivo
 -- consolida o esquema para documentação e para criação manual, se necessário.
 --
 -- Banco por serviço: cada bloco roda em um database diferente e nenhum

@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down clean ps logs config lint-contracts
+.PHONY: help keys up down clean ps logs config lint-contracts
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -9,8 +9,14 @@ help: ## Lista os comandos
 INIT_JOBS := minio-init
 LONG_RUNNING := $(filter-out $(INIT_JOBS),$(shell $(COMPOSE) config --services 2>/dev/null))
 
-up: ## Sobe a infraestrutura local e roda os jobs de inicialização
-	$(COMPOSE) up -d --wait $(LONG_RUNNING)
+keys: ## Gera a chave RS256 do JWT em infra/secrets (uma vez)
+	@mkdir -p infra/secrets
+	@test -f infra/secrets/jwt-private.pem \
+		|| (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out infra/secrets/jwt-private.pem 2>/dev/null \
+		&& chmod 644 infra/secrets/jwt-private.pem && echo "Chave criada em infra/secrets/jwt-private.pem")
+
+up: keys ## Sobe a infraestrutura e os serviços (gera a chave do JWT se faltar)
+	$(COMPOSE) up -d --build --wait $(LONG_RUNNING)
 	$(COMPOSE) up --no-log-prefix $(INIT_JOBS)
 
 down: ## Derruba os containers (mantém os dados)
