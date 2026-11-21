@@ -1,0 +1,99 @@
+# CI reutilizável para projetos Node (serviços NestJS e frontend Vue).
+#
+# Convenção de scripts no package.json de cada projeto:
+#   lint       ESLint
+#   typecheck  tsc --noEmit (ou vue-tsc)
+#   test:cov   testes unitários com cobertura (o gate fica no coverageThreshold do Jest/Vitest)
+#   test:e2e   testes de integração/E2E (Testcontainers ou Playwright) — opcional
+#   build      build de produção
+name: _node-service
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Nome do serviço (usado nos artefatos)
+        required: true
+        type: string
+      path:
+        description: Pasta do projeto
+        required: true
+        type: string
+      run-e2e:
+        description: Executa npm run test:e2e
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ${{ inputs.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verifica se o projeto já existe
+        id: check
+        working-directory: .   # roda na raiz: a pasta do projeto pode ainda não existir
+        run: |
+          if [ -f "${{ inputs.path }}/package.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=${{ inputs.name }}::Sem package.json em ${{ inputs.path }} ainda; CI ignorado."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ inputs.path }}/package-lock.json
+
+      - name: Instala dependências
+        if: steps.check.outputs.exists == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.check.outputs.exists == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.check.outputs.exists == 'true'
+        run: npm run typecheck
+
+      - name: Testes unitários + cobertura
+        if: steps.check.outputs.exists == 'true'
+        run: npm run test:cov
+
+      - name: Testes de integração / E2E
+        if: steps.check.outputs.exists == 'true' && inputs.run-e2e
+        run: npm run test:e2e
+
+      - name: Build
+        if: steps.check.outputs.exists == 'true'
+        run: npm run build
+
+      - name: Auditoria de dependências (produção)
+        if: steps.check.outputs.exists == 'true'
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Publica relatório de cobertura
+        if: always() && steps.check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.name }}
+          path: ${{ inputs.path }}/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build da imagem Docker (validação)
+        if: steps.check.outputs.exists == 'true' && hashFiles(format('{0}/Dockerfile', inputs.path)) != ''
+        run: docker build -t "fiapx-${{ inputs.name }}:ci" .

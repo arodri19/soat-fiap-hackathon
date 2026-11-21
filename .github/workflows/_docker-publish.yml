@@ -1,0 +1,68 @@
+# Build e push reutilizável de uma imagem para o GHCR.
+#   homologacao -> :<sha> e :homolog
+#   main        -> :<sha> e :latest
+name: _docker-publish
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      path:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: ${{ inputs.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verifica Dockerfile
+        id: check
+        run: |
+          if [ -f "${{ inputs.path }}/Dockerfile" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=${{ inputs.name }}::Sem Dockerfile em ${{ inputs.path }}; publicação ignorada."
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.check.outputs.exists == 'true'
+
+      - uses: docker/login-action@v3
+        if: steps.check.outputs.exists == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        if: steps.check.outputs.exists == 'true'
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/fiapx-${{ inputs.name }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=homolog,enable=${{ github.ref == 'refs/heads/homologacao' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=fiapx-${{ inputs.name }}
+
+      - uses: docker/build-push-action@v6
+        if: steps.check.outputs.exists == 'true'
+        with:
+          context: ${{ inputs.path }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.name }}
