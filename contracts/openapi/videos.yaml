@@ -1,0 +1,240 @@
+openapi: 3.1.0
+info:
+  title: FIAP X — video-api
+  version: 1.0.0
+  description: |
+    Upload de vídeos, listagem de status e download do zip de frames.
+
+    Todas as rotas exigem `Authorization: Bearer <access_token>` emitido pelo auth-service.
+    Cada usuário só enxerga os próprios vídeos (outro usuário recebe `404`, não `403`,
+    para não revelar a existência do recurso).
+
+    Ciclo de vida: `PENDING` (na fila) → `PROCESSING` → `DONE` | `FAILED`.
+
+    Pelo gateway, as rotas ficam sob `/api` (ex.: `/api/videos`).
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:8080/api
+    description: Gateway local
+  - url: http://localhost:3002
+    description: video-api direto (desenvolvimento)
+tags:
+  - name: videos
+    description: Vídeos do usuário autenticado
+  - name: interno
+    description: Uso de infraestrutura
+
+security:
+  - bearerAuth: []
+
+paths:
+  /videos:
+    post:
+      tags: [videos]
+      operationId: uploadVideo
+      summary: Envia um vídeo para processamento
+      description: |
+        O arquivo é gravado no storage e o processamento é enfileirado. A resposta é imediata
+        (`202`); o progresso é acompanhado por `GET /videos`. Para vários vídeos, o cliente faz
+        uma requisição por arquivo (permite progresso individual e paralelismo).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [video]
+              properties:
+                video:
+                  type: string
+                  format: binary
+                  description: "Extensões aceitas: mp4, avi, mov, mkv, wmv, flv, webm. Tamanho máximo: 500 MB."
+            encoding:
+              video:
+                contentType: video/*
+      responses:
+        "202":
+          description: Vídeo aceito e enfileirado
+          headers:
+            Location:
+              description: URL do recurso criado
+              schema: { type: string, examples: ["/videos/3f0c2a9e-7c1b-4a52-9d8e-0b7d1c2e4f60"] }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Video" }
+        "400":
+          description: Arquivo ausente ou extensão não suportada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413":
+          description: Arquivo maior que o limite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    get:
+      tags: [videos]
+      operationId: listVideos
+      summary: Lista os vídeos do usuário com status
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/VideoStatus" }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Página de vídeos, mais recentes primeiro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoPage" }
+        "400":
+          description: Parâmetro inválido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /videos/{id}:
+    parameters:
+      - $ref: "#/components/parameters/VideoId"
+    get:
+      tags: [videos]
+      operationId: getVideo
+      summary: Detalhe de um vídeo
+      responses:
+        "200":
+          description: Vídeo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Video" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /videos/{id}/download:
+    parameters:
+      - $ref: "#/components/parameters/VideoId"
+    get:
+      tags: [videos]
+      operationId: getDownloadUrl
+      summary: URL temporária para baixar o zip de frames
+      responses:
+        "200":
+          description: URL pré-assinada (válida por 5 minutos)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expires_in]
+                properties:
+                  url: { type: string, format: uri }
+                  expires_in: { type: integer, examples: [300] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Vídeo ainda não está `DONE`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /health:
+    get:
+      tags: [interno]
+      operationId: health
+      summary: Liveness/readiness
+      security: []
+      responses:
+        "200": { description: Saudável }
+        "503": { description: Dependência indisponível }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    VideoId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: Não autenticado ou token inválido/expirado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Vídeo não existe ou pertence a outro usuário
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    VideoStatus:
+      type: string
+      enum: [PENDING, PROCESSING, DONE, FAILED]
+
+    Video:
+      type: object
+      required: [id, original_filename, size_bytes, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        original_filename: { type: string, examples: ["apresentacao.mp4"] }
+        size_bytes: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/VideoStatus" }
+        frame_count:
+          type: [integer, "null"]
+          description: Preenchido quando `DONE`
+        error_message:
+          type: [string, "null"]
+          description: Preenchido quando `FAILED`
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    VideoPage:
+      type: object
+      required: [items, page, page_size, total, counts]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Video" }
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer, description: Total de itens com o filtro aplicado }
+        counts:
+          type: object
+          description: Totais por status de todos os vídeos do usuário (alimenta os cards do front)
+          required: [PENDING, PROCESSING, DONE, FAILED]
+          properties:
+            PENDING: { type: integer }
+            PROCESSING: { type: integer }
+            DONE: { type: integer }
+            FAILED: { type: integer }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }

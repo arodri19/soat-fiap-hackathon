@@ -1,0 +1,268 @@
+openapi: 3.1.0
+info:
+  title: FIAP X — auth-service
+  version: 1.0.0
+  description: |
+    Cadastro, login e sessão dos usuários.
+
+    - **Access token**: JWT RS256, 15 min, enviado em `Authorization: Bearer <token>`.
+    - **Refresh token**: opaco, 7 dias, em cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`,
+      rotacionado a cada uso.
+    - Os outros serviços validam o JWT localmente com a chave pública de `/.well-known/jwks.json`.
+
+    Pelo gateway, as rotas ficam sob `/api` (ex.: `/api/auth/login`).
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:8080/api
+    description: Gateway local
+  - url: http://localhost:3001
+    description: auth-service direto (desenvolvimento)
+tags:
+  - name: auth
+    description: Cadastro, login e sessão
+  - name: interno
+    description: Uso entre serviços (não exposto pelo gateway)
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Cria uma conta
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Conta criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "409":
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Autentica com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Autenticado. Também define o cookie `refresh_token`.
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401":
+          description: E-mail ou senha inválidos (mensagem genérica)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refresh
+      summary: Renova o access token usando o cookie de refresh
+      description: O refresh token é rotacionado; reutilizar um token já rotacionado revoga toda a família.
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Novo access token e novo cookie
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Encerra a sessão
+      description: Revoga o refresh token e apaga o cookie. Idempotente.
+      security:
+        - refreshCookie: []
+      responses:
+        "204":
+          description: Sessão encerrada
+
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: me
+      summary: Dados do usuário autenticado
+      responses:
+        "200":
+          description: Usuário
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /.well-known/jwks.json:
+    get:
+      tags: [interno]
+      operationId: jwks
+      summary: Chaves públicas para validar o JWT
+      security: []
+      responses:
+        "200":
+          description: JSON Web Key Set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Jwks" }
+
+  /health:
+    get:
+      tags: [interno]
+      operationId: health
+      summary: Liveness/readiness
+      security: []
+      responses:
+        "200": { description: Saudável }
+        "503": { description: Dependência indisponível }
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+
+  headers:
+    RefreshCookie:
+      description: "`refresh_token=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=604800`"
+      schema: { type: string }
+
+  responses:
+    ValidationError:
+      description: Dados inválidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Não autenticado ou token inválido/expirado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: Muitas tentativas de login (5 a cada 15 min por e-mail + IP)
+      headers:
+        Retry-After:
+          description: Segundos até poder tentar de novo
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120, examples: ["Ana Souza"] }
+        email: { type: string, format: email, maxLength: 255, examples: ["ana@exemplo.com"] }
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          pattern: "^(?=.*[A-Za-z])(?=.*\\d).+$"
+          description: Mínimo 8 caracteres, com ao menos uma letra e um número. Máximo 72 (limite do bcrypt).
+          examples: ["senhaForte1"]
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token: { type: string, description: JWT RS256 }
+        token_type: { type: string, const: Bearer }
+        expires_in: { type: integer, description: Validade em segundos, examples: [900] }
+        user: { $ref: "#/components/schemas/User" }
+
+    User:
+      type: object
+      required: [id, name, email, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        created_at: { type: string, format: date-time }
+
+    AccessTokenClaims:
+      description: Claims do access token (referência para quem valida)
+      type: object
+      required: [sub, email, name, iss, aud, iat, exp]
+      properties:
+        sub: { type: string, format: uuid, description: ID do usuário }
+        email: { type: string, format: email }
+        name: { type: string }
+        iss: { type: string, const: fiapx-auth }
+        aud: { type: string, const: fiapx }
+        iat: { type: integer }
+        exp: { type: integer }
+
+    Jwks:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            required: [kty, kid, use, alg, n, e]
+            properties:
+              kty: { type: string, const: RSA }
+              kid: { type: string }
+              use: { type: string, const: sig }
+              alg: { type: string, const: RS256 }
+              n: { type: string }
+              e: { type: string }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: Mensagem legível para o usuário }
+        details:
+          type: array
+          description: Erros de validação por campo
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }

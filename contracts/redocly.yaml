@@ -1,0 +1,11 @@
+# Lint dos contratos OpenAPI (make lint-contracts / CI)
+extends:
+  - recommended
+
+rules:
+  # Servidores apontam para o ambiente local (gateway e serviços em localhost)
+  no-server-example.com: off
+  # /health, /logout (idempotente) e JWKS não têm erro de cliente
+  operation-4xx-response: off
+  # AccessTokenClaims é documentação do JWT para quem valida o token
+  no-unused-components: off
