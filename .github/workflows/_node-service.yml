@@ -41,8 +41,9 @@ jobs:
 
       - name: Verifica se o projeto já existe
         id: check
+        working-directory: .   # roda na raiz: a pasta do projeto pode ainda não existir
         run: |
-          if [ -f package.json ]; then
+          if [ -f "${{ inputs.path }}/package.json" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"

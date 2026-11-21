@@ -32,8 +32,9 @@ jobs:
 
       - name: Verifica se o projeto já existe
         id: check
+        working-directory: .   # roda na raiz: a pasta do projeto pode ainda não existir
         run: |
-          if [ -f go.mod ]; then
+          if [ -f "${{ inputs.path }}/go.mod" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
