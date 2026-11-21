@@ -27,7 +27,7 @@ flowchart LR
 
 | Serviço | Pasta | Stack | Status |
 |---|---|---|---|
-| auth-service | [services/auth](services/auth) | Node + NestJS | Planejado |
+| auth-service | [services/auth](services/auth) | Node + NestJS | ✅ Implementado |
 | video-api | [services/video-api](services/video-api) | Node + NestJS | Planejado |
 | processor-worker | [services/processor](services/processor) | Go + ffmpeg | Planejado |
 | notification-service | [services/notification](services/notification) | Node + NestJS | Planejado |
@@ -61,7 +61,7 @@ Pré-requisitos: Docker com Compose v2 e `make`.
 
 ```bash
 cp .env.example .env    # opcional: os valores padrão já funcionam
-make up                 # sobe a infraestrutura e cria buckets, filas e databases
+make up                 # gera a chave do JWT, builda os serviços e sobe tudo (buckets, filas e databases incluídos)
 make ps                 # status
 make down               # derruba (mantém os dados); make clean apaga os volumes
 make help               # todos os comandos
@@ -69,7 +69,7 @@ make help               # todos os comandos
 
 | Componente | URL local | Acesso |
 |---|---|---|
-| Gateway (aplicação) | http://localhost:8080 | — |
+| Gateway (aplicação) | http://localhost:8080 | API em `/api/auth/*` e `/api/videos/*` |
 | RabbitMQ | http://localhost:15672 | `fiapx` / `fiapx` |
 | MinIO (console) | http://localhost:9001 | `minioadmin` / `minioadmin` |
 | Mailpit (e-mails) | http://localhost:8025 | — |
