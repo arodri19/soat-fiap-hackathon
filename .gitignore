@@ -54,3 +54,6 @@ test-results/
 legacy/uploads/
 legacy/outputs/
 legacy/temp/
+
+# Chaves e segredos locais (make keys)
+infra/secrets/
