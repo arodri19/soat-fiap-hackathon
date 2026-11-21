@@ -1,0 +1,205 @@
+{
+  "rabbit_version": "3.13.7",
+  "users": [
+    {
+      "name": "fiapx",
+      "password_hash": "4LEIOMsHCPBzPQXzV0X5VEYZ+RlwiPRnKtmLat8VJS6WuyOY",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ],
+      "limits": {}
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "fiapx",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "videos",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "videos.retry",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "videos.dlq",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "processor.video-requested",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "videos.retry",
+        "x-dead-letter-routing-key": "video.requested"
+      }
+    },
+    {
+      "name": "processor.video-requested.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-message-ttl": 10000,
+        "x-dead-letter-exchange": "videos",
+        "x-dead-letter-routing-key": "video.requested"
+      }
+    },
+    {
+      "name": "processor.video-requested.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "video-api.status-events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "videos.dlq",
+        "x-dead-letter-routing-key": "video-api.status-events"
+      }
+    },
+    {
+      "name": "video-api.status-events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "notification.video-events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "videos.dlq",
+        "x-dead-letter-routing-key": "notification.video-events"
+      }
+    },
+    {
+      "name": "notification.video-events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "videos",
+      "vhost": "/",
+      "destination": "processor.video-requested",
+      "destination_type": "queue",
+      "routing_key": "video.requested",
+      "arguments": {}
+    },
+    {
+      "source": "videos.retry",
+      "vhost": "/",
+      "destination": "processor.video-requested.retry",
+      "destination_type": "queue",
+      "routing_key": "video.requested",
+      "arguments": {}
+    },
+    {
+      "source": "videos.dlq",
+      "vhost": "/",
+      "destination": "processor.video-requested.dlq",
+      "destination_type": "queue",
+      "routing_key": "video.requested",
+      "arguments": {}
+    },
+    {
+      "source": "videos",
+      "vhost": "/",
+      "destination": "video-api.status-events",
+      "destination_type": "queue",
+      "routing_key": "video.processing",
+      "arguments": {}
+    },
+    {
+      "source": "videos",
+      "vhost": "/",
+      "destination": "video-api.status-events",
+      "destination_type": "queue",
+      "routing_key": "video.done",
+      "arguments": {}
+    },
+    {
+      "source": "videos",
+      "vhost": "/",
+      "destination": "video-api.status-events",
+      "destination_type": "queue",
+      "routing_key": "video.failed",
+      "arguments": {}
+    },
+    {
+      "source": "videos.dlq",
+      "vhost": "/",
+      "destination": "video-api.status-events.dlq",
+      "destination_type": "queue",
+      "routing_key": "video-api.status-events",
+      "arguments": {}
+    },
+    {
+      "source": "videos",
+      "vhost": "/",
+      "destination": "notification.video-events",
+      "destination_type": "queue",
+      "routing_key": "video.failed",
+      "arguments": {}
+    },
+    {
+      "source": "videos.dlq",
+      "vhost": "/",
+      "destination": "notification.video-events.dlq",
+      "destination_type": "queue",
+      "routing_key": "notification.video-events",
+      "arguments": {}
+    }
+  ]
+}
