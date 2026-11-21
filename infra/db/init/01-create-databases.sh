@@ -2,8 +2,8 @@
 # Cria um database e um usuário para cada serviço (banco por serviço).
 # Executado automaticamente pelo container do PostgreSQL na primeira inicialização
 # (/docker-entrypoint-initdb.d). As tabelas são criadas pelas migrations de cada serviço:
-#   services/auth/prisma/migrations       -> auth_db
-#   services/video-api/prisma/migrations  -> video_db
+#   services/auth/migrations/*.sql       -> auth_db
+#   services/video-api/migrations/*.sql  -> video_db
 set -euo pipefail
 
 create_db() {
