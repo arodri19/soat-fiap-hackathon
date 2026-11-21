@@ -101,6 +101,25 @@ services:
       - "1025:1025"             # SMTP
       - "8025:8025"             # caixa de entrada web
 
+  # ---------------------------------------------------------------- aplicação
+  auth:
+    build: ./services/auth
+    image: fiapx-auth:local
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://${AUTH_DB_USER:-auth_user}:${AUTH_DB_PASSWORD:-auth_pass}@postgres:5432/${AUTH_DB_NAME:-auth_db}?schema=public
+      REDIS_URL: redis://redis:6379/0
+      JWT_PRIVATE_KEY_FILE: /run/secrets/jwt_private_key
+      COOKIE_SECURE: "false"          # ambiente local sem HTTPS
+      COOKIE_PATH: /api/auth
+      LOG_LEVEL: info
+    secrets: [jwt_private_key]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["3001:3001"]              # acesso direto só para desenvolvimento; o normal é via gateway
+
   # ---------------------------------------------------------------- entrada
   gateway:
     image: nginxinc/nginx-unprivileged:1.27-alpine
@@ -134,6 +153,11 @@ services:
       - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
+
+# Chave RS256 do JWT (gerada por `make keys`, fora do git)
+secrets:
+  jwt_private_key:
+    file: ./infra/secrets/jwt-private.pem
 
 volumes:
   postgres-data:
