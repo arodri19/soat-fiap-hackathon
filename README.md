@@ -75,7 +75,7 @@ make help               # todos os comandos
 | Mailpit (e-mails) | http://localhost:8025 | — |
 | Grafana | http://localhost:3000 | `admin` / `admin` |
 | Prometheus | http://localhost:9090 | — |
-| PostgreSQL | `localhost:5433` | `auth_user`/`auth_pass` em `auth_db`, `video_user`/`video_pass` em `video_db` |
+| PostgreSQL | `localhost:5432` | `auth_user`/`auth_pass` em `auth_db`, `video_user`/`video_pass` em `video_db` |
 | Redis | `localhost:6379` | — |
 
 > As credenciais acima valem apenas para o ambiente local.
