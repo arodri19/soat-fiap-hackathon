@@ -27,9 +27,9 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Meus vídeos' },
   },
   {
-    path: '/apresentacao',
-    component: () => import('@/views/PresentationView.vue'),
-    meta: { requiresAuth: true, title: 'Painel da apresentação' },
+    path: '/infraestrutura',
+    component: () => import('@/views/InfrastructureView.vue'),
+    meta: { requiresAuth: true, title: 'Infraestrutura' },
   },
   {
     path: '/:pathMatch(.*)*',

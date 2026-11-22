@@ -46,7 +46,7 @@ const initials = (name = '') =>
     <v-divider />
     <v-list nav density="comfortable">
       <v-list-item to="/videos" prepend-icon="mdi-movie-open-play-outline" title="Meus vídeos" />
-      <v-list-item to="/apresentacao" prepend-icon="mdi-monitor-dashboard" title="Apresentação" />
+      <v-list-item to="/infraestrutura" prepend-icon="mdi-monitor-dashboard" title="Infraestrutura" />
     </v-list>
   </v-navigation-drawer>
 
