@@ -403,7 +403,11 @@ describe('video-api (E2E)', () => {
       expect(res.text).toMatch(
         /video_status_events_total\{routing_key="video.done",result="applied"/,
       );
-      expect(res.text).toMatch(/outbox_pending\{service="video-api"\} 0/);
+      // O relay publica a cada 100 ms: espera a outbox esvaziar em vez de ler um valor momentâneo
+      await until(async () => {
+        const m = await http().get('/metrics');
+        return /outbox_pending\{service="video-api"\} 0/.test(m.text) ? true : undefined;
+      });
     });
   });
 });
