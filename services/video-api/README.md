@@ -32,7 +32,7 @@ sequenceDiagram
     participant MQ as RabbitMQ
     C->>API: POST /videos (multipart)
     API->>S3: upload em streaming (multipart S3, partes de 8 MB)
-    API->>DB: BEGIN; INSERT videos (PENDING); INSERT outbox; COMMIT
+    API->>DB: BEGIN · INSERT videos (PENDING) · INSERT outbox · COMMIT
     API-->>C: 202 Accepted
     loop relay da outbox (a cada 500 ms)
         API->>DB: SELECT ... FOR UPDATE SKIP LOCKED

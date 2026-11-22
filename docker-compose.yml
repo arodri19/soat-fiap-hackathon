@@ -143,7 +143,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
-      minio: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }   # buckets já criados
       auth: { condition: service_healthy }
     ports: ["3002:3002"]              # acesso direto só para desenvolvimento; o normal é via gateway
 
@@ -184,7 +184,7 @@ services:
       LOG_LEVEL: info
     depends_on:
       rabbitmq: { condition: service_healthy }
-      minio: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }   # buckets já criados
 
   frontend:
     build: ./frontend
