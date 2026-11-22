@@ -1,0 +1,56 @@
+{
+  "name": "fiapx-frontend",
+  "version": "1.0.0",
+  "description": "FIAP X — interface web (Vue 3 + Vuetify)",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "VITE_USE_MOCK=true vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{ts,vue}\" \"tests/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,vue}\" \"tests/**/*.ts\"",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@mdi/font": "7.4.47",
+    "axios": "1.21.1",
+    "pinia": "3.0.4",
+    "vue": "3.5.46",
+    "vue-router": "4.6.5",
+    "vuetify": "3.13.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.5",
+    "@vitejs/plugin-vue": "6.0.11",
+    "@vitest/coverage-v8": "3.2.7",
+    "@vue/test-utils": "2.6.0",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.12.1",
+    "globals": "16.5.0",
+    "jsdom": "26.1.0",
+    "msw": "2.15.0",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "7.3.8",
+    "vite-plugin-vuetify": "2.1.3",
+    "vitest": "3.2.7",
+    "vue-eslint-parser": "10.4.2",
+    "vue-tsc": "3.3.14"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}
