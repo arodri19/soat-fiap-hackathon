@@ -30,7 +30,7 @@ flowchart LR
 | auth-service | [services/auth](services/auth) | Node + NestJS | ✅ Implementado |
 | video-api | [services/video-api](services/video-api) | Node + NestJS | ✅ Implementado |
 | processor-worker | [services/processor](services/processor) | Go + ffmpeg | ✅ Implementado |
-| notification-service | [services/notification](services/notification) | Node + NestJS | Planejado |
+| notification-service | [services/notification](services/notification) | Node + NestJS | ✅ Implementado |
 | frontend | `frontend/` | Vue 3 + Vuetify | Planejado |
 
 **Decisões principais**

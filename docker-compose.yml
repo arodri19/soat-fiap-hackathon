@@ -147,6 +147,23 @@ services:
       auth: { condition: service_healthy }
     ports: ["3002:3002"]              # acesso direto só para desenvolvimento; o normal é via gateway
 
+  notification:
+    build: ./services/notification
+    image: fiapx-notification:local
+    environment:
+      NODE_ENV: production
+      PORT: "3003"
+      RABBITMQ_URL: amqp://fiapx:fiapx@rabbitmq:5672
+      REDIS_URL: redis://redis:6379/1        # database 1: separado do rate limit do auth
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      APP_URL: http://localhost:${GATEWAY_PORT:-8080}
+      LOG_LEVEL: info
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+
   # Worker: escala horizontalmente (make scale n=3). Sem porta no host; métricas em :9101
   # descobertas pelo Prometheus via DNS do compose.
   processor:
