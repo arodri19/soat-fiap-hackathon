@@ -37,3 +37,4 @@ scrape_configs:
       - names: ["processor"]
         type: A
         port: 9101
+        refresh_interval: 5s   # réplicas entram e saem com make scale
