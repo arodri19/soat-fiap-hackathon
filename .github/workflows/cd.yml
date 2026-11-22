@@ -1,0 +1,73 @@
+# CD: publica no GHCR a imagem de cada serviço alterado.
+#   merge em homologacao -> ghcr.io/<owner>/fiapx-<servico>:<sha> e :homolog
+#   merge em main        -> ghcr.io/<owner>/fiapx-<servico>:<sha> e :latest
+# O deploy (Kubernetes) entra na Fase 6.
+name: CD
+
+on:
+  push:
+    branches: [homologacao, main]
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Publicar todos os serviços
+        type: boolean
+        default: false
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detecta alterações
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.matrix.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth: services/auth/**
+            video-api: services/video-api/**
+            processor: services/processor/**
+            notification: services/notification/**
+            frontend: frontend/**
+      - name: Monta a matriz
+        id: matrix
+        env:
+          CHANGES: ${{ steps.filter.outputs.changes }}
+          ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.all }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os
+          paths = {
+              "auth": "services/auth",
+              "video-api": "services/video-api",
+              "processor": "services/processor",
+              "notification": "services/notification",
+              "frontend": "frontend",
+          }
+          names = list(paths) if os.environ["ALL"] == "true" else json.loads(os.environ["CHANGES"])
+          print("services=" + json.dumps([{"name": n, "path": paths[n]} for n in names]))
+          EOF
+
+  publish:
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_docker-publish.yml
+    with:
+      name: ${{ matrix.service.name }}
+      path: ${{ matrix.service.path }}

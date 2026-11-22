@@ -1,0 +1,197 @@
+# CI do monorepo: roda só o que mudou e consolida tudo no check `ci-ok`,
+# que é o único check obrigatório na proteção das branches main e homologacao.
+name: CI
+
+on:
+  pull_request:
+    branches: [homologacao, main]
+  push:
+    branches: [homologacao, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detecta alterações
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+      video-api: ${{ steps.filter.outputs.video-api }}
+      processor: ${{ steps.filter.outputs.processor }}
+      notification: ${{ steps.filter.outputs.notification }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - .github/workflows/**
+            contracts: &contracts
+              - contracts/**
+            auth:
+              - services/auth/**
+              - *shared
+              - *contracts
+            video-api:
+              - services/video-api/**
+              - *shared
+              - *contracts
+            processor:
+              - services/processor/**
+              - *shared
+              - contracts/asyncapi.yaml
+            notification:
+              - services/notification/**
+              - *shared
+              - contracts/asyncapi.yaml
+            frontend:
+              - frontend/**
+              - *shared
+              - contracts/openapi/**
+            infra:
+              - infra/**
+              - tests/**
+              - docker-compose.yml
+              - Makefile
+              - *shared
+              - *contracts
+
+  auth:
+    needs: changes
+    if: needs.changes.outputs.auth == 'true'
+    uses: ./.github/workflows/_node-service.yml
+    with: { name: auth, path: services/auth }
+
+  video-api:
+    needs: changes
+    if: needs.changes.outputs.video-api == 'true'
+    uses: ./.github/workflows/_node-service.yml
+    with: { name: video-api, path: services/video-api }
+
+  notification:
+    needs: changes
+    if: needs.changes.outputs.notification == 'true'
+    uses: ./.github/workflows/_node-service.yml
+    with: { name: notification, path: services/notification }
+
+  processor:
+    needs: changes
+    if: needs.changes.outputs.processor == 'true'
+    uses: ./.github/workflows/_go-service.yml
+    with: { name: processor, path: services/processor }
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/_node-service.yml
+    # testes de interface contra a stack completa ficam no E2E do sistema (Fase 6)
+    with: { name: frontend, path: frontend, run-e2e: false }
+
+  infra:
+    name: Infra e contratos
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: docker-compose.yml
+        run: docker compose config -q
+
+      - name: Scripts shell
+        run: shellcheck infra/db/init/*.sh infra/minio/*.sh
+
+      - name: Gateway (nginx -t)
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginxinc/nginx-unprivileged:1.27-alpine nginx -t
+
+      - name: Prometheus (promtool)
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/infra/monitoring/prometheus:/cfg:ro" \
+            prom/prometheus:v2.55.1 check config /cfg/prometheus.yml
+
+      - name: RabbitMQ definitions (JSON)
+        run: python3 -m json.tool infra/rabbitmq/definitions.json > /dev/null
+
+      - name: Contratos OpenAPI
+        run: npx --yes @redocly/cli@1.25.11 lint --config contracts/redocly.yaml contracts/openapi/auth.yaml contracts/openapi/videos.yaml
+
+      - name: Contrato AsyncAPI
+        run: npx --yes @asyncapi/cli@2.7.1 validate contracts/asyncapi.yaml
+
+  system-e2e:
+    name: E2E do sistema
+    needs: [changes, auth, video-api, notification, processor, frontend, infra]
+    # Roda quando algo da aplicação mudou e os jobs de cada serviço passaram (ou foram pulados)
+    if: >-
+      !cancelled() && !contains(needs.*.result, 'failure') && (
+        needs.changes.outputs.auth == 'true' || needs.changes.outputs.video-api == 'true' ||
+        needs.changes.outputs.processor == 'true' || needs.changes.outputs.notification == 'true' ||
+        needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sobe a stack completa (docker compose)
+        run: make up
+
+      - name: Teste E2E (gateway → serviços → e-mail)
+        run: make e2e
+
+      - name: Teste de carga curto (nenhum upload perdido)
+        run: make load VIDEOS=20 VUS=10
+
+      - name: Logs dos serviços (em caso de falha)
+        if: failure()
+        run: docker compose logs --no-color --tail=200 auth video-api processor notification gateway
+
+      - name: Derruba a stack
+        if: always()
+        run: make clean
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, auth, video-api, notification, processor, frontend, infra, system-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consolida resultado
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          bad = []
+          for job, info in needs.items():
+              result = info["result"]
+              print(f"{job:14} {result}")
+              if result not in ("success", "skipped"):
+                  bad.append(job)
+          if bad:
+              print("::error::Jobs com falha: " + ", ".join(bad))
+              sys.exit(1)
+          EOF
