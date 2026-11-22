@@ -147,6 +147,28 @@ services:
       auth: { condition: service_healthy }
     ports: ["3002:3002"]              # acesso direto só para desenvolvimento; o normal é via gateway
 
+  # Worker: escala horizontalmente (make scale n=3). Sem porta no host; métricas em :9101
+  # descobertas pelo Prometheus via DNS do compose.
+  processor:
+    build: ./services/processor
+    image: fiapx-processor:local
+    restart: unless-stopped           # sai com erro se perder o RabbitMQ; o compose reinicia
+    stop_grace_period: 2m             # termina o vídeo em andamento antes de parar
+    environment:
+      RABBITMQ_URL: amqp://fiapx:fiapx@rabbitmq:5672
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET_RAW: ${MINIO_BUCKET_RAW:-raw-videos}
+      S3_BUCKET_ZIP: ${MINIO_BUCKET_ZIP:-frame-zips}
+      WORKER_CONCURRENCY: "2"         # vídeos em paralelo por réplica
+      MAX_ATTEMPTS: "3"
+      JOB_TIMEOUT: 10m
+      LOG_LEVEL: info
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
   # ---------------------------------------------------------------- entrada
   gateway:
     image: nginxinc/nginx-unprivileged:1.27-alpine
