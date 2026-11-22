@@ -46,7 +46,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS videos (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                UUID PRIMARY KEY,              -- gerado pela aplicação (vai no evento)
   user_id           UUID NOT NULL,                 -- sem FK: o usuário vive no auth_db
   user_email        VARCHAR(255) NOT NULL,         -- vem do JWT; usado na notificação
   original_filename VARCHAR(255) NOT NULL,
@@ -65,9 +65,14 @@ CREATE INDEX IF NOT EXISTS idx_videos_user_created ON videos (user_id, created_a
 -- por um relay. Garante que nenhum upload aceito fique sem mensagem.
 CREATE TABLE IF NOT EXISTS outbox (
   id           BIGSERIAL PRIMARY KEY,
+  exchange     VARCHAR(100) NOT NULL,
   routing_key  VARCHAR(100) NOT NULL,
-  payload      JSONB NOT NULL,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  published_at TIMESTAMPTZ
+  message_id   UUID         NOT NULL,             -- = event_id; idempotência no consumidor
+  payload      JSONB        NOT NULL,
+  headers      JSONB        NOT NULL DEFAULT '{}', -- ex.: x-request-id
+  created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  published_at TIMESTAMPTZ,
+  attempts     INT          NOT NULL DEFAULT 0,
+  last_error   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_pending ON outbox (id) WHERE published_at IS NULL;
