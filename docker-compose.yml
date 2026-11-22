@@ -186,6 +186,17 @@ services:
       rabbitmq: { condition: service_healthy }
       minio: { condition: service_healthy }
 
+  frontend:
+    build: ./frontend
+    image: fiapx-frontend:local
+    environment:
+      API_BASE_URL: /api                       # mesma origem via gateway (cookie de refresh funciona)
+      GRAFANA_URL: http://localhost:3000
+      PROMETHEUS_URL: http://localhost:9090
+      RABBITMQ_URL: http://localhost:15672
+      MAILPIT_URL: http://localhost:8025
+      MINIO_URL: http://localhost:9001
+
   # ---------------------------------------------------------------- entrada
   gateway:
     image: nginxinc/nginx-unprivileged:1.27-alpine
