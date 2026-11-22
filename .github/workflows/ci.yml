@@ -93,7 +93,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     uses: ./.github/workflows/_node-service.yml
-    with: { name: frontend, path: frontend }
+    # testes de interface contra a stack completa ficam no E2E do sistema (Fase 6)
+    with: { name: frontend, path: frontend, run-e2e: false }
 
   infra:
     name: Infra e contratos
