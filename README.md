@@ -4,6 +4,25 @@ Hackathon **SOAT — Fase 5 (FIAP Pós Tech)**. O usuário envia vídeos e baixa
 
 Esta versão reescreve o [projeto base](legacy/) com arquitetura de microsserviços e mensageria. A versão nova processa vários vídeos ao mesmo tempo, não perde requisições em picos, exige usuário e senha, lista o status dos vídeos de cada usuário e avisa por e-mail quando um processamento falha.
 
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [docs/arquitetura.md](docs/arquitetura.md) | Requisitos × solução, diagramas C4, fluxos (login, upload, falha), mensageria, dados, escalabilidade, segurança, observabilidade, CI/CD |
+| [docs/adr](docs/adr) | Decisões de arquitetura (monorepo, Go × NestJS, banco por serviço, outbox, RabbitMQ, S3, JWT, SQL puro) |
+| [contracts](contracts) | Contratos HTTP (OpenAPI) e de mensagens (AsyncAPI) |
+| [docs/apresentacao.md](docs/apresentacao.md) | Roteiro do vídeo e passo a passo da demonstração |
+
+### Entregáveis do hackathon
+
+- [x] **Documentação da arquitetura:** [docs/arquitetura.md](docs/arquitetura.md) + [ADRs](docs/adr)
+- [x] **Script de criação do banco e dos demais recursos:**
+  - [infra/db/init](infra/db/init/01-create-databases.sh): databases e usuários por serviço;
+  - migrations [auth](services/auth/migrations/001_init.sql) e [video-api](services/video-api/migrations/001_init.sql), além do [schema consolidado](infra/db/schema.sql);
+  - [filas do RabbitMQ](infra/rabbitmq/definitions.json) e [buckets](infra/minio/create-buckets.sh).
+- [x] **Link do GitHub:** este repositório
+- [ ] **Vídeo de até 10 minutos:** roteiro em [docs/apresentacao.md](docs/apresentacao.md)
+
 ## Arquitetura
 
 ```mermaid
