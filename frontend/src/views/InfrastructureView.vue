@@ -35,15 +35,6 @@ const cards = [
 ] as const;
 
 const available = cards.filter((c) => config.links[c.key]);
-
-const steps = [
-  'Criar conta e entrar (auth-service: bcrypt + JWT RS256 + refresh em cookie HttpOnly)',
-  'Enviar vários vídeos de uma vez (video-api: streaming para o MinIO + outbox transacional)',
-  'Acompanhar o status mudando sozinho: Na fila → Processando → Concluído',
-  'Enviar um arquivo inválido e ver o erro aqui e o e-mail no Mailpit',
-  'Escalar os workers (make scale n=3) e enviar um lote: processamento em paralelo',
-  'Ver filas no RabbitMQ e métricas no Grafana',
-];
 </script>
 
 <template>
@@ -77,20 +68,6 @@ const steps = [
         </v-col>
       </v-row>
       <p v-if="!available.length" class="text-medium-emphasis">Nenhum link configurado.</p>
-    </v-card>
-
-    <v-card class="pa-5">
-      <h2 class="text-h6 font-weight-bold mb-4">Roteiro da demonstração</h2>
-      <v-list density="comfortable" class="pa-0">
-        <v-list-item v-for="(step, i) in steps" :key="i" class="px-0">
-          <template #prepend>
-            <v-avatar color="primary" size="28" class="mr-3"
-              ><span class="text-caption">{{ i + 1 }}</span></v-avatar
-            >
-          </template>
-          <v-list-item-title class="text-wrap">{{ step }}</v-list-item-title>
-        </v-list-item>
-      </v-list>
     </v-card>
   </div>
 </template>
