@@ -11,7 +11,6 @@ Esta versão reescreve o [projeto base](legacy/) com arquitetura de microsservi�
 | [docs/arquitetura.md](docs/arquitetura.md) | Requisitos × solução, diagramas C4, fluxos (login, upload, falha), mensageria, dados, escalabilidade, segurança, observabilidade, CI/CD |
 | [docs/adr](docs/adr) | Decisões de arquitetura (monorepo, Go × NestJS, banco por serviço, outbox, RabbitMQ, S3, JWT, SQL puro) |
 | [contracts](contracts) | Contratos HTTP (OpenAPI) e de mensagens (AsyncAPI) |
-| [docs/apresentacao.md](docs/apresentacao.md) | Roteiro do vídeo e passo a passo da demonstração |
 
 ### Entregáveis do hackathon
 
@@ -21,7 +20,7 @@ Esta versão reescreve o [projeto base](legacy/) com arquitetura de microsservi�
   - migrations [auth](services/auth/migrations/001_init.sql) e [video-api](services/video-api/migrations/001_init.sql), além do [schema consolidado](infra/db/schema.sql);
   - [filas do RabbitMQ](infra/rabbitmq/definitions.json) e [buckets](infra/minio/create-buckets.sh).
 - [x] **Link do GitHub:** este repositório
-- [ ] **Vídeo de até 10 minutos:** roteiro em [docs/apresentacao.md](docs/apresentacao.md)
+- [ ] **Vídeo de até 10 minutos**
 
 ## Arquitetura
 
