@@ -1,6 +1,6 @@
 # frontend
 
-Interface web do FIAP X: cadastro e login, envio de vários vídeos com progresso, status atualizado automaticamente, download do zip e um painel com atalhos da infraestrutura para a apresentação.
+Interface web do FIAP X: cadastro e login, envio de vários vídeos com progresso, status atualizado automaticamente, download do zip e uma página com atalhos para a infraestrutura.
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ Interface web do FIAP X: cadastro e login, envio de vários vídeos com progress
 |---|---|
 | `/login`, `/cadastro` | Entrar e criar conta. As regras de senha são as mesmas do backend, com indicador de força |
 | `/videos` | Envio (arrastar e soltar ou seleção múltipla), cards por status que também servem de filtro, tabela paginada, download e mensagem de erro |
-| `/apresentacao` | Links para Grafana, RabbitMQ, Mailpit, MinIO e Prometheus, e o roteiro da demonstração |
+| `/infraestrutura` | Links para Grafana, RabbitMQ, Mailpit, MinIO e Prometheus |
 
 Tema claro e escuro (a escolha fica salva) e layout responsivo.
 
@@ -61,4 +61,4 @@ O container gera o `/config.js` a partir das variáveis de ambiente (`docker/40-
 | `USE_MOCK` | `false` | `true` liga a API simulada (MSW) |
 | `POLL_INTERVAL_MS` | `3000` | Intervalo de atualização |
 | `MAX_UPLOAD_MB` | `500` | Limite validado no navegador |
-| `GRAFANA_URL`, `RABBITMQ_URL`, `MAILPIT_URL`, `MINIO_URL`, `PROMETHEUS_URL` | vazio | Links do painel da apresentação |
+| `GRAFANA_URL`, `RABBITMQ_URL`, `MAILPIT_URL`, `MINIO_URL`, `PROMETHEUS_URL` | vazio | Links da página de infraestrutura |
