@@ -60,6 +60,7 @@ jobs:
               - contracts/openapi/**
             infra:
               - infra/**
+              - tests/**
               - docker-compose.yml
               - Makefile
               - *shared
@@ -136,10 +137,45 @@ jobs:
       - name: Contrato AsyncAPI
         run: npx --yes @asyncapi/cli@2.7.1 validate contracts/asyncapi.yaml
 
+  system-e2e:
+    name: E2E do sistema
+    needs: [changes, auth, video-api, notification, processor, frontend, infra]
+    # Roda quando algo da aplicação mudou e os jobs de cada serviço passaram (ou foram pulados)
+    if: >-
+      !cancelled() && !contains(needs.*.result, 'failure') && (
+        needs.changes.outputs.auth == 'true' || needs.changes.outputs.video-api == 'true' ||
+        needs.changes.outputs.processor == 'true' || needs.changes.outputs.notification == 'true' ||
+        needs.changes.outputs.frontend == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sobe a stack completa (docker compose)
+        run: make up
+
+      - name: Teste E2E (gateway → serviços → e-mail)
+        run: make e2e
+
+      - name: Teste de carga curto (nenhum upload perdido)
+        run: make load VIDEOS=20 VUS=10
+
+      - name: Logs dos serviços (em caso de falha)
+        if: failure()
+        run: docker compose logs --no-color --tail=200 auth video-api processor notification gateway
+
+      - name: Derruba a stack
+        if: always()
+        run: make clean
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, auth, video-api, notification, processor, frontend, infra]
+    needs: [changes, auth, video-api, notification, processor, frontend, infra, system-e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Consolida resultado
