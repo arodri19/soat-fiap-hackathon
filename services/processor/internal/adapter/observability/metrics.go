@@ -33,7 +33,7 @@ func NewMetrics() *Metrics {
 		Duration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "video_processing_duration_seconds",
 			Help:    "Tempo de processamento de um vídeo (download + ffmpeg + zip + upload)",
-			Buckets: []float64{1, 2, 5, 10, 30, 60, 120, 300, 600},
+			Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600},
 		}),
 		Frames: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "video_frames_extracted_total",
