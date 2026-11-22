@@ -29,7 +29,7 @@ flowchart LR
 |---|---|---|---|
 | auth-service | [services/auth](services/auth) | Node + NestJS | ✅ Implementado |
 | video-api | [services/video-api](services/video-api) | Node + NestJS | ✅ Implementado |
-| processor-worker | [services/processor](services/processor) | Go + ffmpeg | Planejado |
+| processor-worker | [services/processor](services/processor) | Go + ffmpeg | ✅ Implementado |
 | notification-service | [services/notification](services/notification) | Node + NestJS | Planejado |
 | frontend | `frontend/` | Vue 3 + Vuetify | Planejado |
 
@@ -63,6 +63,7 @@ Pré-requisitos: Docker com Compose v2 e `make`.
 cp .env.example .env    # opcional: os valores padrão já funcionam
 make up                 # gera a chave do JWT, builda os serviços e sobe tudo (buckets, filas e databases incluídos)
 make ps                 # status
+make scale n=3          # 3 réplicas do worker processando em paralelo
 make down               # derruba (mantém os dados); make clean apaga os volumes
 make help               # todos os comandos
 ```
