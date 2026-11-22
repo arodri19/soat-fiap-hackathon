@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help keys up down clean ps logs scale config lint-contracts processor-test processor-lint
+.PHONY: help keys up down clean ps logs scale load e2e config lint-contracts processor-test processor-lint
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -33,6 +33,14 @@ logs: ## Acompanha os logs (ex.: make logs s=rabbitmq)
 
 scale: ## Escala o worker (ex.: make scale n=3)
 	$(COMPOSE) up -d --no-recreate --scale processor=$(or $(n),2) processor
+
+load: ## Teste de carga: rajada de uploads (ex.: make load VIDEOS=100 VUS=30)
+	docker run --rm --network host -v $(CURDIR)/tests:/tests -w /tests/load \
+		-e VIDEOS=$(or $(VIDEOS),30) -e VUS=$(or $(VUS),15) \
+		grafana/k6:1.4.2 run --quiet upload-burst.js
+
+e2e: ## Teste E2E do sistema completo (requer make up)
+	node --test tests/e2e/*.test.mjs
 
 config: ## Valida o docker-compose.yml
 	$(COMPOSE) config -q && echo "docker-compose.yml válido"
