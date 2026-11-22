@@ -31,7 +31,7 @@ flowchart LR
 | video-api | [services/video-api](services/video-api) | Node + NestJS | ✅ Implementado |
 | processor-worker | [services/processor](services/processor) | Go + ffmpeg | ✅ Implementado |
 | notification-service | [services/notification](services/notification) | Node + NestJS | ✅ Implementado |
-| frontend | `frontend/` | Vue 3 + Vuetify | Planejado |
+| frontend | [frontend](frontend) | Vue 3 + Vuetify | ✅ Implementado |
 
 **Decisões principais**
 - **Banco por serviço.** O worker não acessa banco: ele publica eventos de status e a video-api atualiza o próprio banco.
@@ -70,7 +70,7 @@ make help               # todos os comandos
 
 | Componente | URL local | Acesso |
 |---|---|---|
-| Gateway (aplicação) | http://localhost:8080 | API em `/api/auth/*` e `/api/videos/*` |
+| **Aplicação (front + API)** | **http://localhost:8080** | Crie uma conta na tela de cadastro; API em `/api/auth/*` e `/api/videos/*` |
 | RabbitMQ | http://localhost:15672 | `fiapx` / `fiapx` |
 | MinIO (console) | http://localhost:9001 | `minioadmin` / `minioadmin` |
 | Mailpit (e-mails) | http://localhost:8025 | — |
