@@ -64,6 +64,8 @@ cp .env.example .env    # opcional: os valores padrão já funcionam
 make up                 # gera a chave do JWT, builda os serviços e sobe tudo (buckets, filas e databases incluídos)
 make ps                 # status
 make scale n=3          # 3 réplicas do worker processando em paralelo
+make e2e                # teste E2E do sistema completo (stack no ar)
+make load VIDEOS=200    # rajada de uploads simultâneos: confere que nenhum se perde
 make down               # derruba (mantém os dados); make clean apaga os volumes
 make help               # todos os comandos
 ```
@@ -74,12 +76,29 @@ make help               # todos os comandos
 | RabbitMQ | http://localhost:15672 | `fiapx` / `fiapx` |
 | MinIO (console) | http://localhost:9001 | `minioadmin` / `minioadmin` |
 | Mailpit (e-mails) | http://localhost:8025 | — |
-| Grafana | http://localhost:3000 | `admin` / `admin` |
+| Grafana | http://localhost:3000 | Dashboard "FIAP X — Visão geral" abre sem login; `admin` / `admin` para editar |
 | Prometheus | http://localhost:9090 | — |
 | PostgreSQL | `localhost:5432` | `auth_user`/`auth_pass` em `auth_db`, `video_user`/`video_pass` em `video_db` |
 | Redis | `localhost:6379` | — |
 
 > As credenciais acima valem apenas para o ambiente local.
+
+## Observabilidade e testes do sistema
+
+- **Dashboard no Grafana**, provisionado automaticamente ([fiapx-overview.json](infra/monitoring/grafana/dashboards/fiapx-overview.json)). Mostra:
+  - vídeos recebidos × concluídos × falhas e a vazão por minuto;
+  - fila do worker (aguardando, em processamento, em retry), outbox pendente e DLQs;
+  - workers ativos, vídeos em processamento por réplica e tempo de processamento (p50/p95);
+  - latência p95 e erros 5xx por serviço, logins e e-mails enviados.
+- **Métricas:** todos os serviços expõem `/metrics`. As réplicas do worker são descobertas pelo DNS do compose, e o RabbitMQ expõe métricas por fila.
+- **E2E do sistema** ([tests/e2e](tests/e2e/system.test.mjs)): testa a stack real pela porta da frente.
+  - Autenticação: rotas protegidas, `/me`, refresh por cookie e logout.
+  - Upload de um vídeo real, que fica `DONE` e gera um zip com 5 frames.
+  - 6 uploads em paralelo.
+  - Arquivo inválido, que fica `FAILED` e gera e-mail no Mailpit.
+  - Validações e isolamento entre usuários.
+  - Roda no CI a cada PR que muda a aplicação.
+- **Teste de carga** ([tests/load](tests/load/upload-burst.js), k6): rajada de uploads simultâneos. Ele confere que todos foram aceitos e que a fila drena com tudo concluído. Por exemplo, 200 uploads com 40 usuários virtuais e 3 workers drenam em cerca de 10 s, sem nenhum perdido.
 
 ## Contratos
 
